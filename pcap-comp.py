@@ -13,11 +13,7 @@ from collections import Counter
 from scapy.all import rdpcap, TCP, UDP, IP
 
 # --- Configuration ---
-# TODO: Change this to the path of your PCAP file.
 PCAP_FILE = "capture.pcap"
-
-# TODO: Create a CSV file with 'port,service' columns and point to it here.
-# The hardcoded map has been replaced by this CSV file configuration.
 PORT_SERVICE_CSV = "service-names-port-numbers.csv"
 # --- End of Configuration ---
 
@@ -41,7 +37,7 @@ def load_port_map_from_csv(csv_file):
             try:
                 # Read the first row to check for headers
                 first_row = next(reader)
-                if first_row[0].strip().lower() == 'port' and first_row[1].strip().lower() == 'service':
+                if first_row[0].strip().lower() == 'service name' and first_row[1].strip().lower() == 'port number':
                     pass # It's a header, so we just move on
                 else:
                     # Not a header, process it as the first data row
@@ -57,8 +53,8 @@ def load_port_map_from_csv(csv_file):
                 if not row or len(row) < 2:
                     continue # Skip empty or malformed rows
                 try:
-                    port = int(row[0].strip())
-                    service = row[1].strip()
+                    service = row[0].strip()
+                    port = int(row[1].strip())
                     port_map[port] = service
                 except (ValueError, IndexError) as e:
                     print(f"Warning: Skipping malformed row in {csv_file}: {row} -> {e}")
