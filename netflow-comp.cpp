@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
     
     FlowStats other_stats;
     for (size_t i = 0; i < sorted_stats.size(); ++i) {
-        if (i < top_n) {
+        if (i < static_cast<size_t>(top_n)) {
             const auto& pair = sorted_stats[i];
             std::cout << pair.first << ","
                       << pair.second.packet_count << ","
