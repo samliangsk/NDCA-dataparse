@@ -13,7 +13,7 @@ from collections import Counter
 from scapy.all import rdpcap, TCP, UDP, IP
 
 # --- Configuration ---
-PCAP_FILE = "capture.pcap"
+PCAP_FILE = "202001161400.pcap"
 PORT_SERVICE_CSV = "service-names-port-numbers.csv"
 # --- End of Configuration ---
 
@@ -26,45 +26,44 @@ def load_port_map_from_csv(csv_file):
         csv_file (str): The path to the CSV file.
 
     Returns:
-        dict: A dictionary mapping integer port numbers to service name strings.
+        dict: A dictionary mapping integer port numbers and transport protocol to the service.
               Returns an empty dictionary if the file cannot be read.
     """
+    
     port_map = {}
-    try:
-        with open(csv_file, mode='r', newline='', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            # Skip header row if it exists
-            try:
-                # Read the first row to check for headers
-                first_row = next(reader)
-                if first_row[0].strip().lower() == 'service name' and first_row[1].strip().lower() == 'port number':
-                    pass # It's a header, so we just move on
-                else:
-                    # Not a header, process it as the first data row
-                    port = int(first_row[0].strip())
-                    service = first_row[1].strip()
-                    port_map[port] = service
-            except StopIteration:
-                # File is empty
-                return {}
+    with open(csv_file, mode='r', newline='') as infile:
+        reader = csv.reader(infile)
+        port_map = {}
+        next(reader)
+        
+        # skipping the first row
+        try:
+            next(reader)
+            pass
+        except StopIteration:
+            # File is empty
+            return {}
 
-            # Process remaining rows
-            for row in reader:
-                if not row or len(row) < 2:
-                    continue # Skip empty or malformed rows
-                try:
-                    service = row[0].strip()
-                    port = int(row[1].strip())
-                    port_map[port] = service
-                except (ValueError, IndexError) as e:
-                    print(f"Warning: Skipping malformed row in {csv_file}: {row} -> {e}")
-    except FileNotFoundError:
-        print(f"Error: The CSV file '{csv_file}' was not found.")
-        print("Please create it or update the PORT_SERVICE_CSV variable.")
-        return {}
-    except Exception as e:
-        print(f"An error occurred while reading the CSV file: {e}")
-        return {}
+        # Process remaining rows
+        for row in reader:
+            if not row or len(row) < 2:
+                continue # Skip empty or malformed rows
+
+            service = row[0].strip()
+            port_str = row[1].strip()
+            proto = row[2].strip()
+            if(port_str == ''):
+                break
+            if '-' in port_str:
+                start_end = port_str.split('-', 1)
+                for i in range(int(start_end[0]),int(start_end[1])):
+                    port = i
+                    port_map[(port,proto)] = service
+
+            else: 
+                port = int(port_str)
+                port_map[(port,proto)] = service
+            
 
     return port_map
 
