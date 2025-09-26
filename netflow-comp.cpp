@@ -14,6 +14,15 @@ struct FlowStats {
     long long byte_count = 0;
 };
 
+// Holds the details of a single unrecognized flow
+// struct UnrecognizedFlow {
+//     std::string protocol;
+//     int src_port;
+//     int dst_port;
+//     long long packets;
+//     long long bytes;
+// };
+
 // Use a pair of <protocol, port> as the key to uniquely identify a service
 using ServiceKey = std::pair<std::string, int>;
 
@@ -60,13 +69,11 @@ std::map<ServiceKey, std::string> loadServices(const std::string& filename) {
 }
 
 int main(int argc, char* argv[]) {
-    // We now expect two arguments: the services file and the "N" for Top N
     if (argc < 3) {
         std::cerr << "Usage: " << argv[0] << " <services.csv> <top_n>" << std::endl;
         return 1;
     }
 
-    // 1. Load service definitions and the top_n value
     std::map<ServiceKey, std::string> services = loadServices(argv[1]);
     int top_n = 0;
     try {
@@ -76,11 +83,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // 2. Prepare to aggregate statistics
     std::map<std::string, FlowStats> stats;
     std::string line;
 
-    // 3. Process flow data from standard input
+    // --- MODIFIED CODE: Use a map to aggregate unrecognized flows ---
+    std::map<ServiceKey, FlowStats> unrecognized_stats;
+
+    // Process flow data from standard input
     while (getline(std::cin, line)) {
         std::stringstream ss(line);
         std::string proto, src_port_str, dst_port_str, packets_str, bytes_str;
@@ -97,19 +106,19 @@ int main(int argc, char* argv[]) {
                 long long bytes = std::stoll(bytes_str);
 
                 std::string service_name = "other";
-                ServiceKey dst_key = {proto, dst_port};
-                ServiceKey src_key = {proto, src_port};
-                ServiceKey key;
-                key = dst_port < src_port? dst_key: src_key;
-                // std::cout<<proto << " "<< dst_port<< " "<< src_port<< std::endl;
+                ServiceKey key = (dst_port < src_port) ? 
+                                 ServiceKey{proto, dst_port} : 
+                                 ServiceKey{proto, src_port};
+
                 if (services.count(key)) {
                     service_name = services.at(key);
+                } else {
+                    service_name = "Unrecognized";
+                    // --- Aggregate stats for the unrecognized key ---
+                    unrecognized_stats[key].packet_count += packets;
+                    unrecognized_stats[key].byte_count += bytes;
                 }
-                else{
-                    service_name = "other!!";
-                }
-                // service_name = services[key];
-                // std::cout<<service_name<<std::endl;
+                
                 stats[service_name].packet_count += packets;
                 stats[service_name].byte_count += bytes;
 
@@ -117,40 +126,73 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // 4. Prepare, sort, and print the "Top N" report
-    // Convert map to a vector for sorting
-    std::vector<std::pair<std::string, FlowStats>> sorted_stats(stats.begin(), stats.end());
+    // --- Sort and write the AGGREGATED unrecognized flows ---
+    if (!unrecognized_stats.empty()) {
+        // 1. Convert map to a vector so we can sort by value (FlowStats)
+        std::vector<std::pair<ServiceKey, FlowStats>> sorted_unrecognized;
+        for (const auto& pair : unrecognized_stats) {
+            sorted_unrecognized.push_back(pair);
+        }
 
-    // Sort the vector in descending order based on byte count
+        // 2. Sort the vector by byte count in descending order
+        std::sort(sorted_unrecognized.begin(), sorted_unrecognized.end(), 
+            [](const auto& a, const auto& b) {
+            return a.second.byte_count > b.second.byte_count;
+        });
+
+        // 3. Write the sorted data to the output file
+        std::ofstream outfile("unrecognized.txt");
+        if (outfile.is_open()) {
+            outfile << "Protocol,Port,Packets,Bytes\n";
+            for (const auto& pair : sorted_unrecognized) {
+                outfile << pair.first.first << ","      // Protocol
+                        << pair.first.second << ","     // Lower Port
+                        << pair.second.packet_count << ","
+                        << pair.second.byte_count << "\n";
+            }
+        }
+    }
+
+    // Prepare, sort, and print the "Top N" report (this part is unchanged)
+    std::vector<std::pair<std::string, FlowStats>> sorted_stats(stats.begin(), stats.end());
     std::sort(sorted_stats.begin(), sorted_stats.end(), [](const auto& a, const auto& b) {
         return a.second.byte_count > b.second.byte_count;
     });
+    std::ofstream outfile1("Top-Services.txt");
+        if (!outfile1.is_open()) {
+            std::cerr << "Error: Could not open services file: Top-Services.txt"  << std::endl;
+        }
 
     std::cout << "\n--- Top " << top_n << " Services Report (by Bytes) ---\n";
-    std::cout << std::left << std::setw(15) << "Service"
-              << std::right << std::setw(20) << "Total Packets"
-              << std::right << std::setw(20) << "Total Bytes" << std::endl;
-    std::cout << std::string(55, '-') << std::endl;
+    outfile1 << "--- Top " << top_n << " Services Report (by Bytes) ---\n";
+    std::cout << "Service,Total Packets,Total Bytes\n";
+    outfile1 << "Service,Total Packets,Total Bytes\n";
     
     FlowStats other_stats;
     for (size_t i = 0; i < sorted_stats.size(); ++i) {
         if (i < top_n) {
             const auto& pair = sorted_stats[i];
-            // Output as: Service,PacketCount,ByteCount
             std::cout << pair.first << ","
-                    << pair.second.packet_count << ","
-                    << pair.second.byte_count << std::endl;
+                      << pair.second.packet_count << ","
+                      << pair.second.byte_count << std::endl;
+
+            outfile1  << pair.first << ","
+                      << pair.second.packet_count << ","
+                      << pair.second.byte_count << std::endl;
         } else {
-            // Aggregate the rest into "other"
             other_stats.packet_count += sorted_stats[i].second.packet_count;
             other_stats.byte_count += sorted_stats[i].second.byte_count;
         }
     }
-    // Also update the "other" print statement
+    
     if (other_stats.packet_count > 0) {
         std::cout << "other" << ","
-                << other_stats.packet_count << ","
-                << other_stats.byte_count << std::endl;
+                  << other_stats.packet_count << ","
+                  << other_stats.byte_count << std::endl;
+        
+        outfile1  << "other" << ","
+                  << other_stats.packet_count << ","
+                  << other_stats.byte_count << std::endl;
     }
 
     return 0;

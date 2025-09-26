@@ -6,6 +6,23 @@ __pycache__/
 # C extensions
 *.so
 
+
+
+# Ignore build directories
+/build/
+/bin/
+
+# Ignore common object files
+*.o
+*.obj
+
+# Ignore common executable extensions (Windows)
+*.exe
+
+# Ignore specific executable names (if applicable)
+netflow-comp
+
+
 # Distribution / packaging
 .Python
 build/
