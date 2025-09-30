@@ -1,33 +1,35 @@
 # The C++ compiler to use
 CXX = g++
 
-# Compiler flags:
-# -std=c++17: Use the C++17 standard
-# -Wall -Wextra: Enable all common and extra warnings
-# -O2: Optimize the code for speed
-# -g: Include debugging information (optional, but good practice)
+# Compiler flags
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -g
 
 # The name of the final executable
 TARGET = netflow-comp
 
-# The single source file for the project
+# The source file
 SOURCES = netflow-comp.cpp
+
+# --- PcapPlusPlus Configuration ---
+# Use the config script to get the necessary compiler and linker flags
+PCPP_INCLUDES = $(shell pcapplusplus-config --includes)
+PCPP_LIBS = $(shell pcapplusplus-config --libs)
 
 # --- Rules ---
 
-# The default goal, executed when you just run "make"
+# Default goal
 all: $(TARGET)
 
 # Rule to link the object file into the final executable
 $(TARGET): $(SOURCES)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(PCPP_INCLUDES) $(PCPP_LIBS)
 
 # Rule to clean up the directory
-# Removes the executable file
 clean:
 	rm -f $(TARGET)
 	rm -rf netflow-comp.dSYM
+	rm -rf pcap-comp.dSYM
+	rm -f pcap-comp
 
 # Phony targets are not real files
 .PHONY: all clean
